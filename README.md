@@ -17,7 +17,7 @@
 
 ## About
 
-This repository provides a complete framework for deploying and benchmarking **NVIDIA cuOpt** on **Oracle Cloud Infrastructure (OCI)** for Electric Vehicle (EV) fleet optimization. Developed as part of the **AI Center of Excellence (AI CoE)** initiative, this framework demonstrates enterprise-grade GPU-accelerated route optimization capabilities.
+This repository provides a complete framework for deploying and benchmarking **NVIDIA cuOpt** on **Oracle Cloud Infrastructure (OCI)** for Electric Vehicle (EV) fleet optimization, this framework demonstrates enterprise-grade GPU-accelerated route optimization capabilities.
 
 ### Framework Purpose
 
