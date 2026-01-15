@@ -1,0 +1,116 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cuopt-nim
+  namespace: cuopt
+  labels:
+    app: cuopt-nim
+    app.kubernetes.io/name: cuopt
+    app.kubernetes.io/component: optimization-engine
+spec:
+  replicas: 4  # One per GPU node
+  selector:
+    matchLabels:
+      app: cuopt-nim
+  template:
+    metadata:
+      labels:
+        app: cuopt-nim
+    spec:
+      # Tolerate GPU nodes
+      tolerations:
+        - key: "nvidia.com/gpu"
+          operator: "Exists"
+          effect: "NoSchedule"
+
+      # Image pull secrets - configure these
+      imagePullSecrets:
+        - name: ngc-secret
+        - name: ocir-secret
+
+      # Init container to prepare cache
+      initContainers:
+        - name: init-cache
+          image: busybox:1.36
+          command: ['sh', '-c', 'mkdir -p /cache && chmod 777 /cache']
+          volumeMounts:
+            - name: model-cache
+              mountPath: /cache
+
+      containers:
+        - name: cuopt-nim
+          # NVIDIA cuOpt NIM image from NGC
+          image: nvcr.io/nvidia/cuopt/cuopt:25.02
+          imagePullPolicy: IfNotPresent
+
+          ports:
+            - containerPort: 8000
+              name: http
+              protocol: TCP
+            - containerPort: 8001
+              name: grpc
+              protocol: TCP
+
+          env:
+            - name: NVIDIA_VISIBLE_DEVICES
+              value: "all"
+            - name: CUDA_VISIBLE_DEVICES
+              value: "0"
+
+          resources:
+            requests:
+              cpu: "4"
+              memory: "16Gi"
+              nvidia.com/gpu: "1"
+            limits:
+              cpu: "8"
+              memory: "32Gi"
+              nvidia.com/gpu: "1"
+
+          volumeMounts:
+            - name: model-cache
+              mountPath: /opt/nvidia/cuopt/cache
+            - name: dshm
+              mountPath: /dev/shm
+
+          readinessProbe:
+            httpGet:
+              path: /cuopt/health
+              port: 8000
+            initialDelaySeconds: 60
+            periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 5
+
+          livenessProbe:
+            httpGet:
+              path: /cuopt/health
+              port: 8000
+            initialDelaySeconds: 120
+            periodSeconds: 60
+            timeoutSeconds: 10
+            failureThreshold: 3
+
+      volumes:
+        - name: model-cache
+          emptyDir:
+            sizeLimit: "20Gi"
+        - name: dshm
+          emptyDir:
+            medium: Memory
+            sizeLimit: "8Gi"
+
+      # Schedule on GPU nodes
+      nodeSelector:
+        nvidia.com/gpu: "true"
+
+      # Anti-affinity for distribution across nodes
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    app: cuopt-nim
+                topologyKey: kubernetes.io/hostname

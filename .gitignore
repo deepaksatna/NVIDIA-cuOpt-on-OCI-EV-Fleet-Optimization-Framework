@@ -1,0 +1,66 @@
+# =============================================================================
+# cuOpt on OCI - Git Ignore
+# =============================================================================
+
+# Credentials - NEVER commit these
+configs/credentials.env
+k8s/base/ngc-secret.yaml
+k8s/base/ocir-secret.yaml
+*.secret.yaml
+*.credentials
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+ENV/
+env/
+.venv/
+chart_venv/
+*.egg-info/
+dist/
+build/
+*.egg
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Temporary files
+*.tmp
+*.temp
+.cache/
+
+# Kubernetes temp
+*.kubeconfig
+kubeconfig
+
+# Local benchmark results (keep committed results)
+benchmarks/reports/*/
+!benchmarks/results/
+
+# Docker
+.docker/
+
+# Terraform (if using)
+.terraform/
+*.tfstate
+*.tfstate.backup
+*.tfvars
+
+# OCI
+.oci/

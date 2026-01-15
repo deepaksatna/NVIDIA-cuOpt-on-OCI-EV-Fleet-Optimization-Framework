@@ -1,0 +1,177 @@
+{
+  "benchmark_info": {
+    "timestamp": "2026-01-15T19:21:39Z",
+    "endpoint": "http://cuopt-service:8000",
+    "platform": "OCI OKE with NVIDIA A10 GPUs",
+    "cuopt_version": "25.12",
+    "mode": "internal_cluster_pod",
+    "gpu_nodes": 4,
+    "total_gpu_memory_gb": 96
+  },
+  "fleet_scaling_results": {
+    "EV-Fleet-10v": {
+      "locations": 15,
+      "vehicles": 10,
+      "iterations": 15,
+      "success_rate": 100,
+      "avg_response_ms": 10765,
+      "p95_response_ms": 10960,
+      "min_response_ms": 10549,
+      "max_response_ms": 10960
+    },
+    "EV-Fleet-25v": {
+      "locations": 40,
+      "vehicles": 25,
+      "iterations": 12,
+      "success_rate": 100,
+      "avg_response_ms": 17975,
+      "p95_response_ms": 19922,
+      "min_response_ms": 17275,
+      "max_response_ms": 19922
+    },
+    "EV-Fleet-50v": {
+      "locations": 75,
+      "vehicles": 50,
+      "iterations": 10,
+      "success_rate": 100,
+      "avg_response_ms": 24960,
+      "p95_response_ms": 25631,
+      "min_response_ms": 24500,
+      "max_response_ms": 25631
+    },
+    "EV-Fleet-100v": {
+      "locations": 150,
+      "vehicles": 100,
+      "iterations": 8,
+      "success_rate": 100,
+      "avg_response_ms": 40786,
+      "p95_response_ms": 41977,
+      "min_response_ms": 39773,
+      "max_response_ms": 41977
+    },
+    "EV-Fleet-150v": {
+      "locations": 225,
+      "vehicles": 150,
+      "iterations": 6,
+      "success_rate": 100,
+      "avg_response_ms": 62431,
+      "p95_response_ms": 62823,
+      "min_response_ms": 62039,
+      "max_response_ms": 62823
+    },
+    "EV-Fleet-200v": {
+      "locations": 300,
+      "vehicles": 200,
+      "iterations": 5,
+      "success_rate": 100,
+      "avg_response_ms": 85481,
+      "p95_response_ms": 86660,
+      "min_response_ms": 83965,
+      "max_response_ms": 86660
+    },
+    "EV-Fleet-300v": {
+      "locations": 450,
+      "vehicles": 300,
+      "iterations": 4,
+      "success_rate": 100,
+      "avg_response_ms": 115977,
+      "p95_response_ms": 117501,
+      "min_response_ms": 114549,
+      "max_response_ms": 117501
+    },
+    "EV-Fleet-400v": {
+      "locations": 550,
+      "vehicles": 400,
+      "iterations": 3,
+      "success_rate": 100,
+      "avg_response_ms": 142532,
+      "p95_response_ms": 144418,
+      "min_response_ms": 140079,
+      "max_response_ms": 144418
+    },
+    "EV-Fleet-500v": {
+      "locations": 650,
+      "vehicles": 500,
+      "iterations": 3,
+      "success_rate": 100,
+      "avg_response_ms": 192413,
+      "p95_response_ms": 195671,
+      "min_response_ms": 189378,
+      "max_response_ms": 195671
+    }
+  },
+  "use_case_results": {
+    "LastMile-Small": {
+      "locations": 60,
+      "vehicles": 20,
+      "iterations": 10,
+      "success_rate": 100,
+      "avg_response_ms": 24613,
+      "p95_response_ms": 26231
+    },
+    "LastMile-Medium": {
+      "locations": 120,
+      "vehicles": 40,
+      "iterations": 8,
+      "success_rate": 100,
+      "avg_response_ms": 46407,
+      "p95_response_ms": 46918
+    },
+    "LastMile-Large": {
+      "locations": 250,
+      "vehicles": 80,
+      "iterations": 5,
+      "success_rate": 100,
+      "avg_response_ms": 76566,
+      "p95_response_ms": 77433
+    },
+    "Charging-Small": {
+      "locations": 40,
+      "vehicles": 30,
+      "iterations": 10,
+      "success_rate": 100,
+      "avg_response_ms": 19065,
+      "p95_response_ms": 19384
+    },
+    "Charging-Medium": {
+      "locations": 80,
+      "vehicles": 60,
+      "iterations": 8,
+      "success_rate": 100,
+      "avg_response_ms": 34916,
+      "p95_response_ms": 35925
+    },
+    "Charging-Large": {
+      "locations": 150,
+      "vehicles": 100,
+      "iterations": 5,
+      "success_rate": 100,
+      "avg_response_ms": 52872,
+      "p95_response_ms": 53876
+    },
+    "Dispatch-Realtime": {
+      "locations": 50,
+      "vehicles": 25,
+      "iterations": 15,
+      "success_rate": 100,
+      "avg_response_ms": 14057,
+      "p95_response_ms": 15511
+    },
+    "Dispatch-Batch": {
+      "locations": 200,
+      "vehicles": 75,
+      "iterations": 6,
+      "success_rate": 100,
+      "avg_response_ms": 59526,
+      "p95_response_ms": 60413
+    }
+  },
+  "summary": {
+    "total_scenarios": 17,
+    "total_iterations": 105,
+    "overall_success_rate": 100,
+    "max_vehicles_tested": 500,
+    "max_locations_tested": 650,
+    "benchmark_duration_minutes": 37
+  }
+}

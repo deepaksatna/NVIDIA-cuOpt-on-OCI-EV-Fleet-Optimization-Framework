@@ -1,0 +1,310 @@
+# =============================================================================
+# cuOpt Benchmark Client Image
+# =============================================================================
+# Build: docker build -f Dockerfile.benchmark -t <registry>:cuopt-benchmark-v2 ..
+# =============================================================================
+
+FROM python:3.11-slim
+
+LABEL maintainer="AI Center of Excellence"
+LABEL description="cuOpt Benchmark Client - EV Fleet Optimization (10-500 vehicles)"
+LABEL version="2.0"
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    jq \
+    wget \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Python dependencies
+RUN pip install --no-cache-dir \
+    requests>=2.31.0 \
+    numpy>=1.24.0 \
+    tqdm>=4.65.0 \
+    tabulate>=0.9.0
+
+# Set working directory
+WORKDIR /app
+
+# Create directories
+RUN mkdir -p /app/benchmarks /app/results
+
+# Copy benchmark scripts
+COPY benchmarks/benchmark_client.py /app/benchmarks/
+COPY benchmarks/run_benchmark.py /app/benchmarks/
+
+# Embedded benchmark script for cluster execution
+COPY <<'EOF' /app/benchmarks/run_cluster_benchmark.py
+#!/usr/bin/env python3
+"""
+cuOpt Cluster Benchmark - Runs inside Kubernetes pod
+Tests from 10 to 500 vehicles with EV fleet use cases
+"""
+
+import os
+import sys
+import json
+import time
+import random
+import requests
+from datetime import datetime
+from pathlib import Path
+
+# Configuration from environment
+CUOPT_ENDPOINT = os.environ.get("CUOPT_ENDPOINT", "http://cuopt-service:8000")
+RESULTS_DIR = os.environ.get("RESULTS_DIR", "/results")
+
+def generate_vrp_problem(num_locations, num_vehicles, time_limit=30):
+    """Generate VRP problem in cuOpt 25.x format"""
+    random.seed(int(time.time() * 1000) % 2**32)
+
+    cost_matrix = []
+    for i in range(num_locations):
+        row = []
+        for j in range(num_locations):
+            if i == j:
+                row.append(0)
+            else:
+                row.append(random.randint(5, 100))
+        cost_matrix.append(row)
+
+    num_tasks = num_locations - 1
+
+    return {
+        "cost_matrix_data": {
+            "data": {"0": cost_matrix}
+        },
+        "fleet_data": {
+            "vehicle_locations": [[0, 0] for _ in range(num_vehicles)],
+            "capacities": [[100] * num_vehicles],
+            "vehicle_time_windows": [[0, 480] for _ in range(num_vehicles)]
+        },
+        "task_data": {
+            "task_locations": list(range(1, num_locations)),
+            "demand": [[random.randint(5, 20) for _ in range(num_tasks)]],
+            "task_time_windows": [[0, 480] for _ in range(num_tasks)],
+            "service_times": [random.randint(5, 15) for _ in range(num_tasks)]
+        },
+        "solver_config": {
+            "time_limit": time_limit
+        }
+    }
+
+def run_benchmark(session, scenario_name, num_locations, num_vehicles, iterations, time_limit):
+    """Run benchmark for a specific scenario"""
+    print(f"\n{'='*70}")
+    print(f"  {scenario_name}")
+    print(f"  Locations: {num_locations} | Vehicles: {num_vehicles} | Iterations: {iterations}")
+    print(f"{'='*70}")
+
+    results = {
+        "scenario": scenario_name,
+        "num_locations": num_locations,
+        "num_vehicles": num_vehicles,
+        "iterations": iterations,
+        "time_limit": time_limit,
+        "individual_results": [],
+        "timestamp": datetime.now().isoformat()
+    }
+
+    response_times = []
+    solve_times = []
+    successes = 0
+
+    for i in range(iterations):
+        try:
+            payload = generate_vrp_problem(num_locations, num_vehicles, time_limit)
+
+            start = time.time()
+            response = session.post(
+                f"{CUOPT_ENDPOINT}/cuopt/cuopt",
+                json=payload,
+                timeout=time_limit + 120
+            )
+            elapsed = (time.time() - start) * 1000
+            response_times.append(elapsed)
+
+            if response.status_code == 200:
+                data = response.json()
+                if "response" in data:
+                    solver = data["response"]["solver_response"]
+                    solve_time = data["response"].get("total_solve_time", 0) * 1000
+                    status = solver.get("status", -1)
+
+                    solve_times.append(solve_time)
+
+                    if status == 0:
+                        successes += 1
+                        status_str = "SUCCESS"
+                    else:
+                        status_str = f"STATUS:{status}"
+                else:
+                    status_str = "ERROR"
+                    solve_time = 0
+            else:
+                status_str = f"HTTP:{response.status_code}"
+                solve_time = 0
+
+            results["individual_results"].append({
+                "iteration": i + 1,
+                "response_time_ms": elapsed,
+                "solve_time_ms": solve_time,
+                "status": status_str
+            })
+
+            print(f"  [{i+1:3d}/{iterations}] Response: {elapsed:8.1f}ms | Solve: {solve_time:8.1f}ms | {status_str}")
+
+        except Exception as e:
+            print(f"  [{i+1:3d}/{iterations}] ERROR: {str(e)[:50]}")
+            response_times.append(0)
+
+    # Calculate statistics
+    if response_times and any(t > 0 for t in response_times):
+        valid_times = [t for t in response_times if t > 0]
+        sorted_times = sorted(valid_times)
+
+        results["statistics"] = {
+            "success_count": successes,
+            "success_rate": (successes / iterations) * 100,
+            "avg_response_ms": sum(valid_times) / len(valid_times),
+            "min_response_ms": min(valid_times),
+            "max_response_ms": max(valid_times),
+            "p50_response_ms": sorted_times[len(sorted_times) // 2],
+            "p95_response_ms": sorted_times[int(len(sorted_times) * 0.95)] if len(sorted_times) > 1 else sorted_times[0],
+            "p99_response_ms": sorted_times[int(len(sorted_times) * 0.99)] if len(sorted_times) > 1 else sorted_times[0],
+            "avg_solve_ms": sum(solve_times) / len(solve_times) if solve_times else 0,
+            "throughput_rps": 1000 / (sum(valid_times) / len(valid_times)) if valid_times else 0
+        }
+
+        print()
+        print(f"  Summary: Success={results['statistics']['success_rate']:.0f}% | "
+              f"Avg={results['statistics']['avg_response_ms']:.0f}ms | "
+              f"P95={results['statistics']['p95_response_ms']:.0f}ms")
+
+    return results
+
+def main():
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    results_path = Path(RESULTS_DIR) / timestamp
+    results_path.mkdir(parents=True, exist_ok=True)
+
+    print("=" * 70)
+    print("  NVIDIA cuOpt EV Fleet Benchmark")
+    print("  Testing: 10 to 500 Vehicles")
+    print("=" * 70)
+    print(f"  Endpoint: {CUOPT_ENDPOINT}")
+    print(f"  Results: {results_path}")
+    print(f"  Started: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    print("=" * 70)
+
+    # Test connectivity
+    print("\nTesting cuOpt connectivity...")
+    try:
+        health = requests.get(f"{CUOPT_ENDPOINT}/cuopt/health", timeout=30)
+        print(f"cuOpt health: {health.json()}")
+    except Exception as e:
+        print(f"ERROR: Cannot connect to cuOpt: {e}")
+        print("Waiting 60 seconds and retrying...")
+        time.sleep(60)
+        try:
+            health = requests.get(f"{CUOPT_ENDPOINT}/cuopt/health", timeout=30)
+            print(f"cuOpt health: {health.json()}")
+        except Exception as e2:
+            print(f"FATAL: Still cannot connect: {e2}")
+            sys.exit(1)
+
+    session = requests.Session()
+    session.headers.update({"Content-Type": "application/json"})
+
+    # Fleet Scaling Scenarios (10 to 500 vehicles)
+    fleet_scenarios = [
+        {"name": "EV-Fleet-10v", "locations": 15, "vehicles": 10, "iterations": 15, "time_limit": 10},
+        {"name": "EV-Fleet-25v", "locations": 40, "vehicles": 25, "iterations": 12, "time_limit": 15},
+        {"name": "EV-Fleet-50v", "locations": 75, "vehicles": 50, "iterations": 10, "time_limit": 20},
+        {"name": "EV-Fleet-100v", "locations": 150, "vehicles": 100, "iterations": 8, "time_limit": 30},
+        {"name": "EV-Fleet-150v", "locations": 225, "vehicles": 150, "iterations": 6, "time_limit": 45},
+        {"name": "EV-Fleet-200v", "locations": 300, "vehicles": 200, "iterations": 5, "time_limit": 60},
+        {"name": "EV-Fleet-300v", "locations": 450, "vehicles": 300, "iterations": 4, "time_limit": 75},
+        {"name": "EV-Fleet-400v", "locations": 550, "vehicles": 400, "iterations": 3, "time_limit": 90},
+        {"name": "EV-Fleet-500v", "locations": 650, "vehicles": 500, "iterations": 3, "time_limit": 120},
+    ]
+
+    # Use Case Scenarios
+    use_case_scenarios = [
+        {"name": "LastMile-Small", "locations": 60, "vehicles": 20, "iterations": 10, "time_limit": 15},
+        {"name": "LastMile-Medium", "locations": 120, "vehicles": 40, "iterations": 8, "time_limit": 30},
+        {"name": "LastMile-Large", "locations": 250, "vehicles": 80, "iterations": 5, "time_limit": 45},
+        {"name": "Charging-Small", "locations": 40, "vehicles": 30, "iterations": 10, "time_limit": 10},
+        {"name": "Charging-Medium", "locations": 80, "vehicles": 60, "iterations": 8, "time_limit": 20},
+        {"name": "Charging-Large", "locations": 150, "vehicles": 100, "iterations": 5, "time_limit": 30},
+        {"name": "Dispatch-Realtime", "locations": 50, "vehicles": 25, "iterations": 15, "time_limit": 5},
+        {"name": "Dispatch-Batch", "locations": 200, "vehicles": 75, "iterations": 6, "time_limit": 30},
+    ]
+
+    all_results = {
+        "benchmark_info": {
+            "timestamp": datetime.now().isoformat(),
+            "endpoint": CUOPT_ENDPOINT,
+            "platform": "OCI OKE with NVIDIA A10 GPUs",
+            "cuopt_version": "25.12"
+        },
+        "fleet_scaling_results": {},
+        "use_case_results": {}
+    }
+
+    # Run fleet scaling benchmarks
+    print("\n" + "=" * 70)
+    print("  PHASE 1: Fleet Scaling (10 to 500 vehicles)")
+    print("=" * 70)
+
+    for scenario in fleet_scenarios:
+        result = run_benchmark(
+            session, scenario["name"], scenario["locations"],
+            scenario["vehicles"], scenario["iterations"], scenario["time_limit"]
+        )
+        all_results["fleet_scaling_results"][scenario["name"]] = result
+        with open(results_path / f"fleet_{scenario['name']}.json", "w") as f:
+            json.dump(result, f, indent=2)
+
+    # Run use case benchmarks
+    print("\n" + "=" * 70)
+    print("  PHASE 2: Use Case Benchmarks")
+    print("=" * 70)
+
+    for scenario in use_case_scenarios:
+        result = run_benchmark(
+            session, scenario["name"], scenario["locations"],
+            scenario["vehicles"], scenario["iterations"], scenario["time_limit"]
+        )
+        all_results["use_case_results"][scenario["name"]] = result
+        with open(results_path / f"usecase_{scenario['name']}.json", "w") as f:
+            json.dump(result, f, indent=2)
+
+    # Save complete results
+    with open(results_path / "complete_results.json", "w") as f:
+        json.dump(all_results, f, indent=2)
+
+    # Print summary
+    print("\n" + "=" * 70)
+    print("  BENCHMARK COMPLETE")
+    print("=" * 70)
+    print(f"Results saved to: {results_path}")
+
+if __name__ == "__main__":
+    main()
+EOF
+
+# Make scripts executable
+RUN chmod +x /app/benchmarks/*.py
+
+# Environment
+ENV PYTHONUNBUFFERED=1
+ENV CUOPT_ENDPOINT=http://cuopt-service:8000
+ENV RESULTS_DIR=/results
+
+# Volume for results
+VOLUME ["/results"]
+
+# Default command
+CMD ["python", "/app/benchmarks/run_cluster_benchmark.py"]

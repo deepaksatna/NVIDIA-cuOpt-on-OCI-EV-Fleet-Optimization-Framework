@@ -1,0 +1,21 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: cuopt
+  labels:
+    app.kubernetes.io/name: cuopt
+    app.kubernetes.io/part-of: ai-coe
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: cuopt-quota
+  namespace: cuopt
+spec:
+  hard:
+    requests.cpu: "32"
+    requests.memory: 128Gi
+    limits.cpu: "64"
+    limits.memory: 256Gi
+    requests.nvidia.com/gpu: "8"
+    limits.nvidia.com/gpu: "8"

@@ -1,0 +1,60 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: cuopt-benchmark
+  namespace: cuopt
+  labels:
+    app.kubernetes.io/name: cuopt-benchmark
+    app.kubernetes.io/component: benchmark
+spec:
+  backoffLimit: 1
+  ttlSecondsAfterFinished: 7200  # Keep for 2 hours
+  template:
+    metadata:
+      labels:
+        app: cuopt-benchmark-full
+    spec:
+      restartPolicy: Never
+
+      # Tolerate GPU nodes
+      tolerations:
+        - key: "nvidia.com/gpu"
+          operator: "Exists"
+          effect: "NoSchedule"
+
+      # Image pull secret - UPDATE WITH YOUR SECRET NAME
+      imagePullSecrets:
+        - name: ocir-secret
+
+      containers:
+        - name: benchmark
+          # UPDATE: Replace with your OCIR registry
+          image: ${OCIR_REGISTRY}:cuopt-benchmark-v2
+          imagePullPolicy: Always
+
+          env:
+            - name: CUOPT_ENDPOINT
+              value: "http://cuopt-service:8000"
+            - name: RESULTS_DIR
+              value: "/results"
+            - name: PYTHONUNBUFFERED
+              value: "1"
+
+          resources:
+            requests:
+              cpu: "1"
+              memory: "2Gi"
+            limits:
+              cpu: "4"
+              memory: "8Gi"
+
+          volumeMounts:
+            - name: results
+              mountPath: /results
+
+      volumes:
+        - name: results
+          emptyDir:
+            sizeLimit: "10Gi"
+
+      terminationGracePeriodSeconds: 600
