@@ -1,0 +1,52 @@
+# NVIDIA cuOpt Offline Deployment Image
+# Pre-cached for air-gapped environments
+# Target: OKE with NVIDIA A10 GPUs
+
+ARG CUOPT_VERSION=24.03
+# Using NVIDIA NIM format for cuOpt
+FROM nvcr.io/nim/nvidia/cuopt:${CUOPT_VERSION}
+
+LABEL maintainer="Oracle AI CoE <ai-coe@oracle.com>"
+LABEL description="NVIDIA cuOpt NIM for offline deployment on OCI OKE"
+LABEL version="1.0"
+LABEL cuopt.version="${CUOPT_VERSION}"
+
+# Environment variables for cuOpt
+ENV CUOPT_SERVER_HOST=0.0.0.0
+ENV CUOPT_SERVER_PORT=8000
+ENV CUOPT_LOG_LEVEL=INFO
+ENV CUOPT_MAX_CONCURRENT_REQUESTS=10
+ENV CUOPT_ENABLE_METRICS=true
+ENV NVIDIA_VISIBLE_DEVICES=all
+ENV NVIDIA_DRIVER_CAPABILITIES=compute,utility
+
+# For offline operation - disable telemetry
+ENV CUOPT_TELEMETRY_ENABLED=false
+ENV NGC_CLI_API_KEY=""
+
+# Create directories for models and cache
+RUN mkdir -p /opt/nvidia/cuopt/models \
+    && mkdir -p /opt/nvidia/cuopt/cache \
+    && mkdir -p /opt/nvidia/cuopt/logs \
+    && mkdir -p /data
+
+# Pre-download and cache optimization models
+# This ensures the image works without internet access
+WORKDIR /opt/nvidia/cuopt
+
+# Copy custom configuration
+COPY configs/cuopt-server-config.yaml /opt/nvidia/cuopt/config.yaml
+
+# Health check endpoint
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD curl -f http://localhost:8000/health || exit 1
+
+# Expose ports
+EXPOSE 8000
+EXPOSE 8001
+
+# Volume mounts for persistence
+VOLUME ["/opt/nvidia/cuopt/models", "/opt/nvidia/cuopt/cache", "/data"]
+
+# Default command
+CMD ["cuopt-server", "--config", "/opt/nvidia/cuopt/config.yaml"]
