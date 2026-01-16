@@ -8,6 +8,7 @@ This directory contains all Dockerfiles and build scripts for the cuOpt deployme
 |-------|------------|---------|------|
 | **cuOpt Offline** | `Dockerfile.cuopt-offline` | Main cuOpt NIM for air-gapped/offline deployment | ~15GB |
 | **Benchmark Client** | `Dockerfile.benchmark` | Benchmark client for testing cuOpt (10-500 vehicles) | ~500MB |
+| **Redis** | Docker Hub | Caching layer for cuOpt optimization results | ~30MB |
 
 ---
 
@@ -133,6 +134,28 @@ docker run --rm \
 
 ---
 
+#### 3. Pull Redis Image
+
+Redis is used as a caching layer for cuOpt optimization results. Pull from Docker Hub:
+
+```bash
+# Pull Redis Alpine (lightweight)
+docker pull redis:7.2-alpine
+
+# Verify
+docker images | grep redis
+```
+
+**Redis Configuration (in Kubernetes deployment):**
+
+| Parameter | Value | Description |
+|-----------|-------|-------------|
+| `maxmemory` | `512mb` | Maximum memory for cache |
+| `maxmemory-policy` | `allkeys-lru` | Eviction policy (Least Recently Used) |
+| `appendonly` | `yes` | Enable persistence |
+
+---
+
 ## Pushing to Oracle Container Registry (OCIR)
 
 ### 1. Login to OCIR
@@ -156,10 +179,12 @@ OCIR_REPO="${OCIR_REGION}.ocir.io/${OCIR_NAMESPACE}/models"
 # Tag images
 docker tag cuopt-nim-offline:24.03 ${OCIR_REPO}:cuopt-nim-24.03
 docker tag cuopt-benchmark:v2 ${OCIR_REPO}:cuopt-benchmark-v2
+docker tag redis:7.2-alpine ${OCIR_REPO}:redis-7.2-alpine
 
 # Push images
 docker push ${OCIR_REPO}:cuopt-nim-24.03
 docker push ${OCIR_REPO}:cuopt-benchmark-v2
+docker push ${OCIR_REPO}:redis-7.2-alpine
 ```
 
 ---
@@ -177,10 +202,14 @@ docker save cuopt-nim-offline:24.03 -o cuopt-nim-offline-24.03.tar
 # Save benchmark client
 docker save cuopt-benchmark:v2 -o cuopt-benchmark-v2.tar
 
+# Save Redis
+docker save redis:7.2-alpine -o redis-7.2-alpine.tar
+
 # Create bundle
 tar -czvf cuopt-images-bundle.tar.gz \
   cuopt-nim-offline-24.03.tar \
-  cuopt-benchmark-v2.tar
+  cuopt-benchmark-v2.tar \
+  redis-7.2-alpine.tar
 ```
 
 ### 2. Transfer to Air-Gapped System
@@ -199,9 +228,10 @@ tar -xzvf cuopt-images-bundle.tar.gz
 # Load images
 docker load -i cuopt-nim-offline-24.03.tar
 docker load -i cuopt-benchmark-v2.tar
+docker load -i redis-7.2-alpine.tar
 
 # Verify
-docker images | grep cuopt
+docker images | grep -E "cuopt|redis"
 ```
 
 ### 4. Push to Internal Registry
@@ -210,10 +240,12 @@ docker images | grep cuopt
 # Tag for internal registry
 docker tag cuopt-nim-offline:24.03 internal-registry.local/cuopt:nim-24.03
 docker tag cuopt-benchmark:v2 internal-registry.local/cuopt:benchmark-v2
+docker tag redis:7.2-alpine internal-registry.local/cuopt:redis-7.2-alpine
 
 # Push
 docker push internal-registry.local/cuopt:nim-24.03
 docker push internal-registry.local/cuopt:benchmark-v2
+docker push internal-registry.local/cuopt:redis-7.2-alpine
 ```
 
 ---
@@ -294,6 +326,9 @@ docker build -f Dockerfile.cuopt-offline -t cuopt-nim-offline:24.03 .
 
 # Build benchmark only (from project root)
 docker build -f docker/Dockerfile.benchmark -t cuopt-benchmark:v2 ..
+
+# Pull Redis
+docker pull redis:7.2-alpine
 ```
 
 ### Push Commands
@@ -301,7 +336,12 @@ docker build -f docker/Dockerfile.benchmark -t cuopt-benchmark:v2 ..
 ```bash
 # Push to OCIR Frankfurt
 docker tag cuopt-nim-offline:24.03 fra.ocir.io/namespace/models:cuopt-nim-24.03
+docker tag cuopt-benchmark:v2 fra.ocir.io/namespace/models:cuopt-benchmark-v2
+docker tag redis:7.2-alpine fra.ocir.io/namespace/models:redis-7.2-alpine
+
 docker push fra.ocir.io/namespace/models:cuopt-nim-24.03
+docker push fra.ocir.io/namespace/models:cuopt-benchmark-v2
+docker push fra.ocir.io/namespace/models:redis-7.2-alpine
 ```
 
 ### Run Commands
@@ -309,6 +349,9 @@ docker push fra.ocir.io/namespace/models:cuopt-nim-24.03
 ```bash
 # Run cuOpt locally (requires NVIDIA GPU)
 docker run --gpus all -p 8000:8000 cuopt-nim-offline:24.03
+
+# Run Redis locally
+docker run -d -p 6379:6379 --name redis redis:7.2-alpine
 
 # Run benchmark
 docker run -e CUOPT_ENDPOINT=http://localhost:8000 cuopt-benchmark:v2

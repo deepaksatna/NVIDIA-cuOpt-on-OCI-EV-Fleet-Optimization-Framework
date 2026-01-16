@@ -3,14 +3,37 @@ kind: Kustomization
 
 namespace: cuopt
 
+# Labels applied to all resources
+commonLabels:
+  app.kubernetes.io/managed-by: kustomize
+  app.kubernetes.io/part-of: cuopt-platform
+  environment: base
+
+# Resources to include
 resources:
   - namespace.yaml
+  - configmap.yaml
+  - cuopt-pvc.yaml
   - cuopt-deployment.yaml
   - cuopt-service.yaml
+  - cuopt-hpa.yaml
+  - redis-deployment.yaml
   # Uncomment after creating secrets
   # - ngc-secret.yaml
   # - ocir-secret.yaml
 
-commonLabels:
-  app.kubernetes.io/part-of: ai-coe
-  app.kubernetes.io/managed-by: kustomize
+# ConfigMap generator (optional - for dynamic configs)
+configMapGenerator:
+  - name: cuopt-env-config
+    literals:
+      - ENVIRONMENT=base
+      - VERSION=1.0
+
+# Images from OCIR Frankfurt (update with your registry)
+images:
+  - name: cuopt-nim
+    newName: fra.ocir.io/frntrd2vyxvi/models
+    newTag: "cuopt-nim-24.03"
+  - name: redis
+    newName: fra.ocir.io/frntrd2vyxvi/models
+    newTag: "redis-7.2-alpine"

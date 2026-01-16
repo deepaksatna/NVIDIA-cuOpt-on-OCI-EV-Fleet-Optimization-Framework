@@ -1,0 +1,62 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: cuopt-model-cache
+  namespace: cuopt
+  labels:
+    app.kubernetes.io/name: cuopt
+    app.kubernetes.io/component: storage
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: oci-bv
+  resources:
+    requests:
+      storage: 100Gi
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: cuopt-logs
+  namespace: cuopt
+  labels:
+    app.kubernetes.io/name: cuopt
+    app.kubernetes.io/component: storage
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: oci-bv
+  resources:
+    requests:
+      storage: 20Gi
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: cuopt-data
+  namespace: cuopt
+  labels:
+    app.kubernetes.io/name: cuopt
+    app.kubernetes.io/component: storage
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: oci-bv
+  resources:
+    requests:
+      storage: 50Gi
+---
+# Storage Class for OCI Block Volumes (if not already exists)
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: oci-bv
+  labels:
+    app.kubernetes.io/name: cuopt
+provisioner: blockvolume.csi.oraclecloud.com
+parameters:
+  attachmentType: paravirtualized
+  vpusPerGB: "10"  # Balanced performance
+reclaimPolicy: Delete
+volumeBindingMode: WaitForFirstConsumer
+allowVolumeExpansion: true

@@ -1,0 +1,93 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cuopt-config
+  namespace: cuopt
+  labels:
+    app.kubernetes.io/name: cuopt
+    app.kubernetes.io/component: configuration
+data:
+  # cuOpt Server Configuration
+  CUOPT_SERVER_HOST: "0.0.0.0"
+  CUOPT_SERVER_PORT: "8000"
+  CUOPT_LOG_LEVEL: "INFO"
+  CUOPT_MAX_CONCURRENT_REQUESTS: "10"
+  CUOPT_ENABLE_METRICS: "true"
+  CUOPT_TELEMETRY_ENABLED: "false"
+
+  # GPU Configuration
+  NVIDIA_VISIBLE_DEVICES: "all"
+  NVIDIA_DRIVER_CAPABILITIES: "compute,utility"
+
+  # Optimization Defaults
+  CUOPT_DEFAULT_TIME_LIMIT: "30"
+  CUOPT_MAX_TIME_LIMIT: "300"
+  CUOPT_ENABLE_CACHE: "true"
+  CUOPT_CACHE_SIZE_MB: "2048"
+
+  # EV-specific configuration
+  EV_DEFAULT_BATTERY_CAPACITY: "75"
+  EV_DEFAULT_ENERGY_CONSUMPTION: "0.2"
+  EV_MIN_SOC_THRESHOLD: "20"
+
+  # cuopt-server-config.yaml
+  cuopt-server-config.yaml: |
+    server:
+      host: 0.0.0.0
+      port: 8000
+      workers: 4
+      request_timeout: 300
+
+    logging:
+      level: INFO
+      format: json
+      file: /opt/nvidia/cuopt/logs/cuopt.log
+
+    optimization:
+      max_time_limit: 300
+      default_time_limit: 30
+      enable_cache: true
+      cache_size_mb: 2048
+      solver_threads: 0  # Auto-detect
+
+    gpu:
+      device_id: 0
+      memory_pool_size_mb: 20480  # 20GB for A10
+
+    metrics:
+      enabled: true
+      port: 8001
+      path: /metrics
+
+    health:
+      enabled: true
+      path: /health
+      ready_path: /ready
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: cuopt-secrets
+  namespace: cuopt
+  labels:
+    app.kubernetes.io/name: cuopt
+    app.kubernetes.io/component: secrets
+type: Opaque
+stringData:
+  # Placeholder - replace with actual NGC API key
+  NGC_API_KEY: "${NGC_API_KEY}"
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: ocir-secret
+  namespace: cuopt
+  labels:
+    app.kubernetes.io/name: cuopt
+type: kubernetes.io/dockerconfigjson
+data:
+  # OCIR credentials for fra.ocir.io
+  # Username: frntrd2vyxvi/deepak.d.soni@oracle.com
+  # Registry: fra.ocir.io/frntrd2vyxvi/models
+  # To regenerate: kubectl create secret docker-registry ocir-secret --docker-server=fra.ocir.io --docker-username='frntrd2vyxvi/deepak.d.soni@oracle.com' --docker-password='<auth-token>' --docker-email='deepak.d.soni@oracle.com' -n cuopt --dry-run=client -o yaml
+  .dockerconfigjson: eyJhdXRocyI6eyJmcmEub2Npci5pbyI6eyJ1c2VybmFtZSI6ImZybnRyZDJ2eXh2aS9kZWVwYWsuZC5zb25pQG9yYWNsZS5jb20iLCJwYXNzd29yZCI6IlowOVAoVjFXdUJaKVJiSng7NzE7IiwiZW1haWwiOiJkZWVwYWsuZC5zb25pQG9yYWNsZS5jb20iLCJhdXRoIjoiWm5KdWRISmtNblo1ZUhacEwyUmxaWEJoYXk1a0xuTnZibWxBYjNKaFkyeGxMbU52YlRwYU1EbFFLRll4VjNWQ1dpbFNZa3A0T3pjeE95MD0ifX19
